@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+
+SQLAlchemy
+pymysql
+
+python-dotenv
+pydantic-settings
+
+requests
+
+python-jose
+passlib[bcrypt]
+
+watchfiles
