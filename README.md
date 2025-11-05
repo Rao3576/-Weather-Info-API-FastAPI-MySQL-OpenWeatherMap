@@ -2,136 +2,280 @@
 A simple yet powerful FastAPI project that fetches real-time weather data using the OpenWeatherMap API and stores it into a MySQL database.
 
 
+---
 
+## 💡 What This Project Teaches
+
+This project helps beginners learn:
+
+* How **FastAPI routes** work
+* How to connect **FastAPI with a MySQL database** using **SQLAlchemy**
+* How to use **external REST APIs** (OpenWeatherMap)
+* How to save and retrieve data using ORM models
+* How to use **`.env`** files for secret keys and credentials
 
 ---
 
-## 🚀 Project Overview
+## 🧠 How the App Works (Simple Flow)
 
-This project demonstrates how to build a complete **FastAPI + MySQL** application that:
-- Fetches **live weather information** using the OpenWeatherMap API.
-- Stores each weather request in a **database table** for history tracking.
-- Provides REST API endpoints to **view live weather** and **check past history**.
+```
+User → FastAPI Route (/weather) → OpenWeatherMap API → Response → Save to MySQL → Back to User
+```
+
+### Step-by-Step Flow:
+
+1. The user sends a GET request like:
+   `http://127.0.0.1:8000/weather/?city=Lahore`
+
+2. The app calls OpenWeatherMap’s API to get live data for Lahore.
+
+3. FastAPI receives that data and saves it in a MySQL table.
+
+4. The API returns a response with temperature, humidity, and description.
+
+5. All fetched cities are stored in a table called `weather_history`.
+
+6. You can later check your saved history at `/weather/history`.
 
 ---
 
 ## 🧩 Tech Stack
 
-| Component | Technology Used |
-|------------|-----------------|
-| Backend Framework | 🧠 FastAPI |
-| Database | 🗄️ MySQL (with SQLAlchemy ORM) |
-| HTTP Client | 🌐 Requests |
+| Purpose                | Tool Used        |
+| ---------------------- | ---------------- |
+| Framework              | 🧠 FastAPI       |
+| Database               | 🗄️ MySQL        |
+| ORM                    | 🧱 SQLAlchemy    |
+| HTTP Requests          | 🌐 Requests      |
 | Environment Management | ⚙️ python-dotenv |
-| Language | 🐍 Python 3.10+ |
+| Language               | 🐍 Python 3.10+  |
 
 ---
 
-## 📁 Project Structure
+## 📁 Folder Structure
 
 ```
-
 Weather-Info-API--FastAPI-MySQL/
 │
-├── main.py                          # Main FastAPI entry point
-├── database.py                      # DB connection & session
+├── main.py                        # Entry point of the FastAPI app
+├── database.py                    # Creates DB engine and session
 ├── models/
-│   └── history_model.py             # WeatherHistory database model
+│   └── history_model.py           # Defines WeatherHistory table
 ├── routers/
-│   └── weather_router.py            # API endpoints (fetch & history)
+│   └── weather_router.py          # Handles API routes
 ├── utils/
-│   └── weather_service.py           # OpenWeatherMap API integration
-├── .env                             # Contains API key & DB credentials
-├── requirements.txt                 # All required libraries
-└── README.md                        # This file 😄
-
-````
+│   └── weather_service.py         # Connects to OpenWeatherMap API
+├── .env                           # Holds API key and DB credentials
+├── requirements.txt               # Required libraries
+└── README.md                      # This file
+```
 
 ---
 
-## ⚙️ Setup Instructions
+## ⚙️ Setup Guide
 
 ### 1️⃣ Clone the Repository
+
 ```bash
 git clone https://github.com/YOUR_USERNAME/Weather-Info-API--FastAPI-MySQL.git
 cd Weather-Info-API--FastAPI-MySQL
-````
+```
 
-### 2️⃣ Create a Virtual Environment
+### 2️⃣ Create Virtual Environment
 
 ```bash
 python -m venv venv
-venv\Scripts\activate   # For Windows
+venv\Scripts\activate      # Windows
 # or
-source venv/bin/activate  # For Mac/Linux
+source venv/bin/activate   # macOS/Linux
 ```
 
-### 3️⃣ Install Requirements
+### 3️⃣ Install Required Packages
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4️⃣ Setup `.env` File
+### 4️⃣ Create `.env` File
 
-Create a `.env` file in the root directory:
-
-```
-OPENWEATHER_API_KEY=YOUR_API_KEY
+```ini
+OPENWEATHER_API_KEY=your_api_key_here
 DB_USER=root
 DB_PASSWORD=yourpassword
 DB_HOST=localhost
 DB_NAME=wheather_db
 ```
 
-> 🧠 Tip: You can get your free API key from [https://openweathermap.org/api](https://openweathermap.org/api)
+> You can get a free API key from [OpenWeatherMap](https://openweathermap.org/api)
 
 ---
 
-## 🛠️ Run the Application
+## 🧰 Code Explanation (for Beginners)
 
-```bash
-uvicorn main:app --reload
+Let’s understand the **main parts** of this project:
+
+---
+
+### 🔹 1. `main.py`
+
+This is where the app starts.
+
+```python
+from fastapi import FastAPI
+from routers import weather_router
+
+app = FastAPI(title="Weather Info API")
+
+# Include routes from weather_router.py
+app.include_router(weather_router.router)
+
+@app.get("/")
+def home():
+    return {"message": "🌦️ Welcome to the Weather Info API"}
 ```
 
-Now visit: 👉 **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**
+**👉 Explanation:**
 
-You’ll see a Swagger UI (interactive documentation) with two main endpoints:
-
-1. `/weather/` → Fetch current weather by city name
-2. `/weather/history` → Retrieve all previously fetched weather data
-
----
-
-## 🌐 How It Works — Step by Step
-
-1. User sends request → `/weather/?city=Lahore`
-2. FastAPI calls OpenWeatherMap API using the city name.
-3. Weather data (temp, humidity, etc.) is fetched live.
-4. Data is saved in **MySQL** under `weather_history` table.
-5. Response is sent back with the current weather info.
-6. You can later view saved records via `/weather/history`.
+* `FastAPI()` creates your web application.
+* `include_router()` connects routes from another file.
+* The `/` route just shows a welcome message when you open the app.
 
 ---
 
-## 🧠 Example API Response
+### 🔹 2. `weather_router.py`
 
-**GET /weather/?city=Lahore**
+Handles both fetching live weather and retrieving saved history.
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from database import get_db
+from models.history_model import WeatherHistory
+from utils.weather_service import get_weather_data
+
+router = APIRouter(prefix="/weather", tags=["Weather"])
+
+@router.get("/")
+def fetch_weather(city: str = Query(..., description="Enter city name"), db: Session = Depends(get_db)):
+    weather = get_weather_data(city)
+    if not weather:
+        raise HTTPException(status_code=404, detail="City not found or API error")
+
+    # Save data into database
+    record = WeatherHistory(
+        city_name=weather["city_name"],
+        temperature=weather["temperature"],
+        weather_desc=weather["weather_desc"],
+        humidity=weather["humidity"],
+        wind_speed=weather["wind_speed"]
+    )
+    db.add(record)
+    db.commit()
+
+    return {"message": "✅ Weather fetched successfully", "data": weather}
+```
+
+**👉 Explanation:**
+
+1. `@router.get("/")` — defines a GET endpoint `/weather/`.
+2. `city` is taken from the user query.
+3. `get_weather_data(city)` — fetches real-time weather from OpenWeatherMap.
+4. Data is saved to MySQL (`WeatherHistory` table).
+5. A success message + weather data is returned to the user.
+
+---
+
+### 🔹 3. `weather_service.py`
+
+This file handles external API calls.
+
+```python
+import requests, os
+from dotenv import load_dotenv
+
+load_dotenv()
+API_KEY = os.getenv("OPENWEATHER_API_KEY")
+BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
+
+def get_weather_data(city_name: str):
+    params = {"q": city_name, "appid": API_KEY, "units": "metric"}
+    response = requests.get(BASE_URL, params=params)
+    data = response.json()
+    if response.status_code != 200:
+        return None
+    return {
+        "city_name": data["name"],
+        "temperature": data["main"]["temp"],
+        "weather_desc": data["weather"][0]["description"],
+        "humidity": data["main"]["humidity"],
+        "wind_speed": data["wind"]["speed"],
+    }
+```
+
+**👉 Explanation:**
+
+* Uses `requests` to call the **OpenWeatherMap API**.
+* Converts JSON data into a Python dictionary.
+* Returns only the useful fields (city, temp, humidity, etc.).
+
+---
+
+### 🔹 4. `history_model.py`
+
+Defines how data is stored in the database.
+
+```python
+from sqlalchemy import Column, Integer, String, Float, DateTime
+from datetime import datetime
+from database import Base
+
+class WeatherHistory(Base):
+    __tablename__ = "weather_history"
+    id = Column(Integer, primary_key=True, index=True)
+    city_name = Column(String(50))
+    temperature = Column(Float)
+    weather_desc = Column(String(100))
+    humidity = Column(Integer)
+    wind_speed = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+```
+
+**👉 Explanation:**
+Each time you call `/weather/`, one new record is inserted here.
+The `created_at` column automatically saves the current timestamp.
+
+---
+
+## 🧠 Example API Usage
+
+### 1️⃣ Fetch Live Weather
+
+```
+GET /weather/?city=Lahore
+```
+
+**Response:**
 
 ```json
 {
   "message": "✅ Weather fetched successfully",
   "data": {
     "city_name": "Lahore",
-    "temperature": 19.5,
+    "temperature": 18.9,
     "weather_desc": "clear sky",
-    "humidity": 56,
-    "wind_speed": 2.5
+    "humidity": 60,
+    "wind_speed": 2.3
   }
 }
 ```
 
-**GET /weather/history**
+### 2️⃣ View Weather History
+
+```
+GET /weather/history
+```
+
+**Response:**
 
 ```json
 {
@@ -139,10 +283,10 @@ You’ll see a Swagger UI (interactive documentation) with two main endpoints:
   "data": [
     {
       "city_name": "Lahore",
-      "temperature": 19.5,
+      "temperature": 18.9,
       "weather_desc": "clear sky",
-      "humidity": 56,
-      "wind_speed": 2.5
+      "humidity": 60,
+      "wind_speed": 2.3
     },
     {
       "city_name": "Karachi",
@@ -157,87 +301,15 @@ You’ll see a Swagger UI (interactive documentation) with two main endpoints:
 
 ---
 
-## 🧰 Key Files Explained
+## 📊 Database Table Example
 
-### 🔸 `main.py`
-
-Starts the FastAPI app and registers the routes.
-
-```python
-from fastapi import FastAPI
-from routers import weather_router
-
-app = FastAPI(title="Weather Info API")
-
-app.include_router(weather_router.router)
-
-@app.get("/")
-def home():
-    return {"message": "🌦️ Welcome to the Weather Info API"}
-```
-
----
-
-### 🔸 `weather_router.py`
-
-Handles API routes — fetching live weather and showing history.
-
-```python
-@router.get("/")
-def fetch_weather(city: str, db: Session = Depends(get_db)):
-    weather = get_weather_data(city)
-    record = WeatherHistory(**weather)
-    db.add(record)
-    db.commit()
-    return {"message": "✅ Weather fetched successfully", "data": weather}
-```
-
----
-
-### 🔸 `weather_service.py`
-
-Connects with the OpenWeatherMap API.
-
-```python
-response = requests.get(
-    "https://api.openweathermap.org/data/2.5/weather",
-    params={"q": city_name, "appid": API_KEY, "units": "metric"}
-)
-```
-
----
-
-### 🔸 `history_model.py`
-
-Defines the database table for storing history.
-
-```python
-class WeatherHistory(Base):
-    __tablename__ = "weather_history"
-    id = Column(Integer, primary_key=True, index=True)
-    city_name = Column(String(50))
-    temperature = Column(Float)
-    weather_desc = Column(String(100))
-    humidity = Column(Integer)
-    wind_speed = Column(Float)
-    created_at = Column(DateTime, default=datetime.utcnow)
-```
-
----
-
-## 🌈 Why This Project?
-
-This project is a **beginner-friendly** example to learn:
-
-* FastAPI Routing & Dependency Injection
-* SQLAlchemy ORM integration
-* Using `.env` and `requests` for external APIs
-* How to connect APIs with databases in real time
+| id | city_name | temperature | weather_desc | humidity | wind_speed | created_at          |
+| -- | --------- | ----------- | ------------ | -------- | ---------- | ------------------- |
+| 1  | Lahore    | 18.9        | clear sky    | 60       | 2.3        | 2025-11-05 07:42:00 |
+| 2  | Karachi   | 29.2        | smoke        | 70       | 3.0        | 2025-11-05 07:48:00 |
 
 ---
 
 ## 🧡 Author
 
 **Muhammad Kashif Mushtaq**
-
-
